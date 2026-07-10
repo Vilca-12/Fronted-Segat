@@ -1,0 +1,65 @@
+name: Deploy Frontend a S3 + CloudFront
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "front-agile-main/**"
+      - ".github/workflows/deploy-s3-cloudfront.yml"
+  workflow_dispatch: {}
+
+defaults:
+  run:
+    working-directory: front-agile-main
+
+permissions:
+  contents: read
+  id-token: write   # necesario si luego se configura OIDC en vez de access keys
+
+jobs:
+  deploy:
+    name: Build y deploy a AWS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: front-agile-main/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar Sass (si existen archivos .scss)
+        run: |
+          if find src -name "*.scss" | grep -q .; then
+            npx --yes sass src:src
+          else
+            echo "No hay archivos .scss que compilar."
+          fi
+
+      - name: Inyectar API_BASE_URL de producción
+        run: |
+          cat > src/js/config.js << EOF
+          export const API_BASE_URL = '${{ secrets.API_BASE_URL }}';
+          EOF
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Sincronizar con S3
+        run: |
+          aws s3 sync src/ s3://${{ secrets.S3_BUCKET_NAME }} --delete
+
+      - name: Invalidar caché de CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
