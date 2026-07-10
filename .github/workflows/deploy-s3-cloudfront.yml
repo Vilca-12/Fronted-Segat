@@ -21,10 +21,10 @@ jobs:
     name: Build y deploy a AWS
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: npm
@@ -43,12 +43,12 @@ jobs:
 
       - name: Inyectar API_BASE_URL de producción
         run: |
-          cat > src/js/config.js << EOF
+          cat > src/js/config.js << 'EOL'
           export const API_BASE_URL = '${{ secrets.API_BASE_URL }}';
-          EOF
+          EOL
 
       - name: Configurar credenciales AWS
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
